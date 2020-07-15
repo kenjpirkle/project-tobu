@@ -2,7 +2,7 @@ const warn = @import("std").debug.warn;
 const builtin = @import("std").builtin;
 const Allocator = @import("std").mem.Allocator;
 const Glyph = @import("glyph.zig").Glyph;
-const Vector4 = @import("../gl/vector.zig").Vector4;
+const zglm = @import("../zglm/zglm.zig");
 const math = @import("std").math;
 usingnamespace @import("../c.zig");
 
@@ -10,7 +10,7 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
     return struct {
         const Self = @This();
 
-        texture_transforms: [char_count]Vector4,
+        texture_transforms: [char_count]zglm.Vec4,
         glyphs: [char_count]Glyph,
         bitmap: []u8,
         bitmap_size: u32,

@@ -30,10 +30,15 @@ pub fn build(b: *Builder) void {
         "-Ideps/glad/include/",
         "-O3",
     });
-    exe.addIncludeDir("deps/sqlite3/include/");
-    exe.addCSourceFile("deps/sqlite3/src/sqlite3.c", &[_][]const u8{
-        "-Ideps/sqlite3/include/",
-        "-DSQLITE_ENABLE_FTS5",
+    exe.addIncludeDir("deps/");
+    exe.addCSourceFile("deps/stb_image.c", &[_][]const u8{
+        "-Ideps/",
+        "-std=c17",
+        "-O3",
+    });
+    exe.addCSourceFile("deps/stb_image_write.c", &[_][]const u8{
+        "-Ideps/",
+        "-std=c17",
         "-O3",
     });
     exe.setTarget(target);

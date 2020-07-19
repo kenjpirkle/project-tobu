@@ -7,21 +7,20 @@ const Camera = @import("camera.zig").Camera;
 const ShaderSource = @import("shaders/shader.zig").ShaderSource;
 const Shader = @import("shaders/shader.zig").Shader;
 const OpaqueBlockShader = @import("shaders/opaque_block_shader.zig").OpaqueBlockShader;
+const DefaultShader = @import("shaders/default_shader.zig").DefaultShader;
 const zglm = @import("zglm/zglm.zig");
 const math = std.math;
 const DrawArraysIndirectCommand = @import("gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
-usingnamespace @import("c.zig");
+const DrawElementsIndirectCommand = @import("gl/draw_elements_indirect_command.zig").DrawElementsIndirectCommand;
 const perlin = @import("perlin_noise.zig");
+const constants = @import("game_constants.zig");
+usingnamespace @import("c.zig");
 
-pub fn checkOpenGLError() bool {
-    var found_error = false;
+pub fn checkOpenGLError() void {
     var gl_error = glGetError();
     while (gl_error != GL_NO_ERROR) : (gl_error = glGetError()) {
         warn("glError: {}\n", .{gl_error});
-        found_error = true;
     }
-
-    return found_error;
 }
 
 pub const KeyboardState = struct {
@@ -33,73 +32,94 @@ pub const KeyboardState = struct {
 
 pub const Game = struct {
     const Self = @This();
-    const vertices = [_]f32{
-        // front face
-        -0.5, -0.5, 0.5,
-        0.5,  -0.5, 0.5,
-        -0.5, 0.5,  0.5,
-        0.5,  0.5,  0.5,
 
-        // back face
-        0.5,  -0.5, -0.5,
-        -0.5, -0.5, -0.5,
-        0.5,  0.5,  -0.5,
-        -0.5, 0.5,  -0.5,
+    // const cube_positions = [_]zglm.Vec3{
+    //     .{ .x = 0.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 1.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 2.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 3.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 4.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 5.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 6.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 7.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 8.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 9.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 10.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 1.0, .y = 0.0, .z = 0.0 },
+    //     .{ .x = 2.0, .y = 0.0, .z = 1.0 },
+    //     .{ .x = 3.0, .y = 0.0, .z = 2.0 },
+    //     .{ .x = 4.0, .y = 0.0, .z = 3.0 },
+    //     .{ .x = 5.0, .y = 0.0, .z = 4.0 },
+    //     .{ .x = 6.0, .y = 0.0, .z = 5.0 },
+    //     .{ .x = 7.0, .y = 0.0, .z = 6.0 },
+    //     .{ .x = 8.0, .y = 0.0, .z = 7.0 },
+    //     .{ .x = 9.0, .y = 0.0, .z = 8.0 },
+    //     .{ .x = 10.0, .y = 0.0, .z = 9.0 },
+    //     .{ .x = 11.0, .y = 0.0, .z = 10.0 },
+    // };
 
-        // left face
-        -0.5, -0.5, -0.5,
-        -0.5, -0.5, 0.5,
-        -0.5, 0.5,  -0.5,
-        -0.5, 0.5,  0.5,
+    // const vertex_indices = comptime blk: {
+    //     @setEvalBranchQuota(511 * 511 * 6);
+    //     var vis: [511 * 511 * 6]GLuint = undefined;
+    //     var row: usize = 512 * (512 - 1);
+    //     var col: usize = 0;
+    //     // for each quad
+    //     var i: usize = 0;
+    //     while (i < vis.len) : (i += 6) {
+    //         // first triangle
+    //         vis[i] = row + col;
+    //         vis[i + 1] = row + col + 1;
+    //         vis[i + 2] = (row - 512) + col;
+    //         // second triangle
+    //         vis[i + 3] = row + col + 1;
+    //         vis[i + 4] = (row - 512) + col + 1;
+    //         vis[i + 5] = (row - 512) + col;
 
-        // right face
-        0.5,  -0.5, 0.5,
-        0.5,  -0.5, -0.5,
-        0.5,  0.5,  0.5,
-        0.5,  0.5,  -0.5,
+    //         col += 1;
+    //         if (col == 511) {
+    //             row -= 512;
+    //             col = 0;
+    //         }
+    //     }
+    //     break :blk vis;
+    // };
 
-        // top face
-        -0.5, 0.5,  0.5,
-        0.5,  0.5,  0.5,
-        -0.5, 0.5,  -0.5,
-        0.5,  0.5,  -0.5,
+    const lod5_vertices = (constants.lod5_scale - 1) * (constants.lod5_scale - 1) * 6;
 
-        // bottom face
-        -0.5, -0.5, -0.5,
-        0.5,  -0.5, -0.5,
-        -0.5, -0.5, 0.5,
-        0.5,  -0.5, 0.5,
-    };
+    // const vertex_indices = comptime blk: {
+    //     @setEvalBranchQuota(lod5_vertices);
+    //     var vis: [lod5_vertices]GLuint = undefined;
+    //     var i: usize = 0;
+    //     var row: usize = 0;
+    //     var quad: usize = 0;
+    //     while (i < lod5_vertices) : (i += 6) {
+    //         const index = (constants.lod5_scale - 1 - row) * (constants.lod5_scale) + quad;
+    //         const above_index = (constants.lod5_scale - 2 - row) * (constants.lod5_scale) + quad;
 
-    const cube_positions = [_]zglm.Vec3{
-        .{ .x = 0.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 1.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 2.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 3.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 4.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 5.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 6.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 7.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 8.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 9.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 10.0, .y = 0.0, .z = 0.0 },
-        .{ .x = 2.0, .y = 5.0, .z = -15.0 },
-        .{ .x = -1.5, .y = -2.2, .z = -2.5 },
-        .{ .x = -3.8, .y = -2.0, .z = -12.3 },
-        .{ .x = 2.4, .y = -0.4, .z = -3.5 },
-        .{ .x = -1.7, .y = 3.0, .z = -7.5 },
-        .{ .x = 1.3, .y = -2.0, .z = -2.5 },
-        .{ .x = 1.5, .y = 2.0, .z = -2.5 },
-        .{ .x = 1.5, .y = 0.2, .z = -1.5 },
-        .{ .x = -1.3, .y = 1.0, .z = -1.5 },
-    };
+    //         // 1st triangle
+    //         vis[i] = index;
+    //         vis[i + 1] = index + 1;
+    //         vis[i + 2] = above_index;
+    //         // 2nd triangle
+    //         vis[i + 3] = index + 1;
+    //         vis[i + 4] = above_index + 1;
+    //         vis[i + 5] = above_index;
+
+    //         quad += 1;
+    //         if (quad == constants.lod5_scale - 1) {
+    //             quad = 0;
+    //             row += 1;
+    //         }
+    //     }
+    //     break :blk vis;
+    // };
 
     window: *GLFWwindow = undefined,
     keyboard_state: KeyboardState = undefined,
     width: u16 = undefined,
     height: u16 = undefined,
     video_mode: *const GLFWvidmode = undefined,
-    // opaque_block_shader: OpaqueBlockShader = undefined,
+    default_shader: DefaultShader = undefined,
     timer: Timer = undefined,
     before_frame: u64 = 0,
     time_delta: u64 = 0,
@@ -119,8 +139,53 @@ pub const Game = struct {
     camera_front: zglm.Vec3 = undefined,
     camera_up: zglm.Vec3 = undefined,
 
+    first_mouse: bool = undefined,
+    yaw: f32 = undefined,
+    pitch: f32 = undefined,
+    last_x: f32 = undefined,
+    last_y: f32 = undefined,
+    fov: f32 = undefined,
+
     pub fn init(self: *Self) !void {
-        try perlin.generateNoise();
+        const vertex_indices = blk: {
+            var vis = try allocator.alloc(GLuint, lod5_vertices);
+            var i: u32 = 0;
+            var row: u32 = 0;
+            var quad: u32 = 0;
+            while (i < lod5_vertices) : (i += 6) {
+                const index: GLuint = (constants.lod5_scale - 1 - row) * (constants.lod5_scale) + quad;
+                const above_index: GLuint = (constants.lod5_scale - 2 - row) * (constants.lod5_scale) + quad;
+
+                // 1st triangle
+                vis[i] = index;
+                vis[i + 1] = index + 1;
+                vis[i + 2] = above_index;
+                // 2nd triangle
+                vis[i + 3] = index + 1;
+                vis[i + 4] = above_index + 1;
+                vis[i + 5] = above_index;
+
+                quad += 1;
+                if (quad == constants.lod5_scale - 1) {
+                    quad = 0;
+                    row += 1;
+                }
+            }
+            break :blk vis;
+        };
+        // for (vertex_indices) |v| {
+        //     warn("{}, ", .{v});
+        // }
+        // warn("\n", .{});
+        var values = try perlin.generateHeightMap(constants.lod5_scale, allocator);
+        try perlin.heightMapToFile(values[0..]);
+        for (values) |*v, i| {
+            v.* /= 2.0;
+            if (i < 30) {
+                warn("{}: {d:.5}\n", .{ i, v.* });
+            }
+        }
+        defer allocator.free(values);
 
         if (glfwInit() == 0) {
             warn("could not initialize glfw\n", .{});
@@ -145,42 +210,72 @@ pub const Game = struct {
             glDebugMessageCallback(debugMessageCallback, null);
         }
 
-        // try self.opaque_block_shader.init();
         setGlState(self.width, self.height);
-
-        const shaders = [_]ShaderSource{
-            .{
-                .shader_type = GL_VERTEX_SHADER,
-                .source = "shaders/block_vertex.glsl",
-            },
-            .{
-                .shader_type = GL_FRAGMENT_SHADER,
-                .source = "shaders/block_fragment.glsl",
-            },
-        };
-        self.shader = try Shader.init(shaders[0..]);
-
-        glGenVertexArrays(1, &self.vao);
-        glGenBuffers(1, &self.vbo);
-        glBindVertexArray(self.vao);
-        glBindBuffer(GL_ARRAY_BUFFER, self.vbo);
-        glBufferData(GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices[0], GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, @sizeOf(f32) * 3, @intToPtr(?*const c_void, 0));
-        glEnableVertexAttribArray(0);
-        glUseProgram(self.shader.program);
-        self.projection_location = try self.shader.getUniformLocation("projection");
-        self.view_location = try self.shader.getUniformLocation("view");
-        self.model_location = try self.shader.getUniformLocation("model");
+        try self.default_shader.init();
 
         const w: f32 = @intToFloat(f32, self.width);
         const h: f32 = @intToFloat(f32, self.height);
-        const projection_matrix: zglm.Mat4 = zglm.perspective(zglm.toRadians(45.0), w / h, 0.1, 100.0);
+        const projection_matrix: zglm.Mat4 = zglm.perspective(zglm.toRadians(70.0), w / h, 0.001, 10000.0);
+        self.default_shader.setProjection(projection_matrix);
 
-        glProgramUniformMatrix4fv(self.shader.program, self.projection_location, 1, GL_FALSE, @ptrCast([*c]const f32, @alignCast(4, &projection_matrix.c0)));
+        self.default_shader.vertex_buffer.beginModify();
+        self.default_shader.vertex_buffer.append(values[0..]);
+        self.default_shader.vertex_buffer.endModify();
+        self.default_shader.index_buffer.beginModify();
+        self.default_shader.index_buffer.append(vertex_indices);
+        self.default_shader.index_buffer.endModify();
+        self.default_shader.draw_command_buffer.beginModify();
+        self.default_shader.draw_command_buffer.append(&[_]DrawElementsIndirectCommand{
+            .{
+                .vertex_count = lod5_vertices,
+                .instance_count = 1,
+                .first_index = 0,
+                .base_vertex = 0,
+                .base_instance = 0,
+            },
+        });
+        self.default_shader.draw_command_buffer.endModify();
+
+        // const shaders = [_]ShaderSource{
+        //     .{
+        //         .shader_type = GL_VERTEX_SHADER,
+        //         .source = "shaders/block_vertex.glsl",
+        //     },
+        //     .{
+        //         .shader_type = GL_FRAGMENT_SHADER,
+        //         .source = "shaders/block_fragment.glsl",
+        //     },
+        // };
+        // self.shader = try Shader.init(shaders[0..]);
+
+        // glGenVertexArrays(1, &self.vao);
+        // glGenBuffers(1, &self.vbo);
+        // glBindVertexArray(self.vao);
+        // glBindBuffer(GL_ARRAY_BUFFER, self.vbo);
+        // glBufferData(GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices[0], GL_STATIC_DRAW);
+        // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, @sizeOf(f32) * 3, @intToPtr(?*const c_void, 0));
+        // glEnableVertexAttribArray(0);
+        // glUseProgram(self.shader.program);
+        // self.projection_location = try self.shader.getUniformLocation("projection");
+        // self.view_location = try self.shader.getUniformLocation("view");
+        // self.model_location = try self.shader.getUniformLocation("model");
+
+        // const w: f32 = @intToFloat(f32, self.width);
+        // const h: f32 = @intToFloat(f32, self.height);
+        // const projection_matrix: zglm.Mat4 = zglm.perspective(zglm.toRadians(70.0), w / h, 0.1, 100.0);
+
+        // glProgramUniformMatrix4fv(self.shader.program, self.projection_location, 1, GL_FALSE, @ptrCast([*c]const f32, @alignCast(4, &projection_matrix.c0)));
+
+        self.first_mouse = true;
+        self.yaw = -90.0;
+        self.pitch = 0.0;
+        self.last_x = @intToFloat(f32, self.width) * 2.0;
+        self.last_y = @intToFloat(f32, self.height) * 2.0;
+        self.fov = 45.0;
 
         self.camera_pos = .{
             .x = 0.0,
-            .y = 0.0,
+            .y = 11.5,
             .z = 3.0,
         };
         self.camera_front = .{
@@ -193,29 +288,6 @@ pub const Game = struct {
             .y = 1.0,
             .z = 0.0,
         };
-
-        // self.camera = .{
-        //     .position = .{
-        //         .x = 0.0,
-        //         .y = 0.0,
-        //         .z = 3.0,
-        //     },
-        //     .target = .{
-        //         .x = 0.0,
-        //         .y = 0.0,
-        //         .z = 0.0,
-        //     },
-        //     .direction = .{
-        //         .x = 0.0,
-        //         .y = 0.0,
-        //         .z = 0.0,
-        //     },
-        //     .projection = zglm.perspective(zglm.toRadians(45.0), w / h, -0.1, -100.0),
-        // };
-
-        // self.opaque_block_shader.setProjection(self.camera.projection);
-
-        // self.timer = try Timer.start();
     }
 
     pub fn deinit(self: *Self) void {
@@ -232,25 +304,28 @@ pub const Game = struct {
             self.processInput();
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            glUseProgram(self.shader.program);
-
-            // self.before_frame = self.timer.read();
+            // glUseProgram(self.default_shader.shader.program);
 
             const view = zglm.lookAt(
                 self.camera_pos,
                 self.camera_pos.add(self.camera_front),
                 self.camera_up,
             );
-            glProgramUniformMatrix4fv(self.shader.program, self.view_location, 1, GL_FALSE, @ptrCast([*c]const f32, @alignCast(4, &view.c0)));
+            self.default_shader.setView(view);
 
-            glBindVertexArray(self.vao);
-            var i: usize = 0;
-            while (i < cube_positions.len) : (i += 1) {
-                const model = zglm.Mat4.identity.translate(cube_positions[i]);
-                glProgramUniformMatrix4fv(self.shader.program, self.model_location, 1, GL_FALSE, @ptrCast([*c]const f32, @alignCast(4, &model.c0)));
+            glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, @intToPtr(?*const c_void, 0), 1, 0);
 
-                glDrawArrays(GL_TRIANGLE_STRIP, 0, 24);
-            }
+            // var i: usize = 0;
+            // while (i < cube_positions.len) : (i += 1) {
+            //     // warn("[{}] cube position: {}\n", .{ i, cube_positions[i] });
+            //     var model = zglm.Mat4.identity; // .translate(cube_positions[i]);
+            //     model.c3.x = cube_positions[i].x;
+            //     model.c3.z = cube_positions[i].z;
+            //     // warn("model: {}\n\n", .{model});
+            //     glProgramUniformMatrix4fv(self.shader.program, self.model_location, 1, GL_FALSE, @ptrCast([*c]const f32, @alignCast(4, &model.c0)));
+
+            //     glDrawArrays(GL_TRIANGLE_STRIP, 0, 24);
+            // }
 
             // self.time_delta = self.timer.lap() - self.before_frame;
             glfwSwapBuffers(self.window);
@@ -259,7 +334,7 @@ pub const Game = struct {
     }
 
     pub fn display(self: *Self) void {
-        // FIXED GL_INVALID_OPERATION error generated. Bound draw indirect buffer is not large enough. BECAUSE THE SECOND ARGUMENT IN glMultiDrawArraysIndirect SHOULD BE 0 (null) AND NOT!!! THE ADDRESS OF THE MAPPED BUFFER
+        // FIXED GL_INVALID_OPERATION error generated. Bound draw indirect buffer is not large enough. BECAUSE THE SECOND ARGUMENT IN glMultiDrawArraysIndirect SHOULD BE 0 (null) AND !NOT! THE ADDRESS OF THE MAPPED BUFFER
         glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, @intToPtr(?*const c_void, 0), 1, 0);
         glfwSwapBuffers(self.window);
     }
@@ -268,7 +343,7 @@ pub const Game = struct {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_SAMPLES, 8);
+        glfwWindowHint(GLFW_SAMPLES, 4);
     }
 
     inline fn setGlState(window_width: c_int, window_height: c_int) void {
@@ -281,7 +356,9 @@ pub const Game = struct {
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glEnable(GL_DEPTH_TEST);
-        glClearColor(0.25, 0.23, 0.25, 1.0);
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        // glEnable(GL_POLYGON_SMOOTH);
+        glClearColor(40.0 / 255.0, 175.0 / 255.0, 234.0 / 255.0, 1.0);
     }
 
     inline fn setGlfwState(self: *Self) !void {
@@ -310,9 +387,11 @@ pub const Game = struct {
             glfwSetWindowShouldClose(self.window, GLFW_TRUE);
         }
 
-        const camera_speed: f32 = 5 * @floatCast(f32, self.delta_time);
+        const camera_speed: f32 = if (glfwGetKey(self.window, GLFW_KEY_SPACE) == GLFW_PRESS) 100 * @floatCast(f32, self.delta_time) else 10 * @floatCast(f32, self.delta_time);
         if (glfwGetKey(self.window, GLFW_KEY_W) == GLFW_PRESS) {
+            const y = self.camera_pos.y;
             self.camera_pos = self.camera_pos.add(self.camera_front.scale(camera_speed));
+            self.camera_pos.y = y;
         }
         if (glfwGetKey(self.window, GLFW_KEY_S) == GLFW_PRESS) {
             self.camera_pos = self.camera_pos.subtract(self.camera_front.scale(camera_speed));
@@ -322,6 +401,12 @@ pub const Game = struct {
         }
         if (glfwGetKey(self.window, GLFW_KEY_D) == GLFW_PRESS) {
             self.camera_pos = self.camera_pos.add(self.camera_front.crossNormalize(self.camera_up).scale(camera_speed));
+        }
+        if (glfwGetKey(self.window, GLFW_KEY_E) == GLFW_PRESS) {
+            self.camera_pos.y += 1.0 * camera_speed;
+        }
+        if (glfwGetKey(self.window, GLFW_KEY_Q) == GLFW_PRESS) {
+            self.camera_pos.y -= 1.0 * camera_speed;
         }
     }
 
@@ -339,6 +424,41 @@ pub const Game = struct {
 
     fn onCursorPositionChanged(win: ?*GLFWwindow, x_pos: f64, y_pos: f64) callconv(.C) void {
         const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+
+        const x = @floatCast(f32, x_pos);
+        const y = @floatCast(f32, y_pos);
+
+        if (ui.first_mouse) {
+            ui.last_x = x;
+            ui.last_y = y;
+            ui.first_mouse = false;
+        }
+
+        var x_offset: f32 = x - ui.last_x;
+        var y_offset: f32 = ui.last_y - y;
+        ui.last_x = x;
+        ui.last_y = y;
+
+        const sensitivity: f32 = 0.1;
+        x_offset *= sensitivity;
+        y_offset *= sensitivity;
+
+        ui.yaw += x_offset;
+        ui.pitch += y_offset;
+
+        if (ui.pitch > 89.0) {
+            ui.pitch = 89.0;
+        }
+        if (ui.pitch < -89.0) {
+            ui.pitch = -89.0;
+        }
+
+        const front: zglm.Vec3 = .{
+            .x = math.cos(zglm.toRadians(ui.yaw)) * math.cos(zglm.toRadians(ui.pitch)),
+            .y = math.sin(zglm.toRadians(ui.pitch)),
+            .z = math.sin(zglm.toRadians(ui.yaw)) * math.cos(zglm.toRadians(ui.pitch)),
+        };
+        ui.camera_front = front.normalize();
     }
 
     fn onMouseButtonEvent(win: ?*GLFWwindow, button: c_int, action: c_int, modifiers: c_int) callconv(.C) void {

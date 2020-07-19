@@ -118,7 +118,7 @@ pub const OpaqueBlockShader = struct {
             .{
                 .vertex_count = 24,
                 .instance_count = 16,
-                .first_vertex = 0,
+                .base_vertex = 0,
                 .base_instance = 0,
             },
         });

@@ -49,7 +49,7 @@ pub const Sprite = struct {
             .{
                 .vertex_count = 4,
                 .instance_count = 1,
-                .first_vertex = 0,
+                .base_vertex = 0,
                 .base_instance = 0,
             },
         });

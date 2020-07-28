@@ -1,12 +1,12 @@
 const std = @import("std");
+const math = std.math;
 const warn = @import("std").debug.warn;
 const c_allocator = std.heap.c_allocator;
 const Allocator = std.mem.Allocator;
+const falloff = std.mem.bytesAsSlice(f32, @embedFile("../falloff.dat"));
 const image_write = @cImport({
     @cInclude("stb_image_write.h");
 });
-
-// int stbi_write_bmp(char const *filename, int w, int h, int comp, const void *data);
 
 const perms = [_]u8{
     151, 160, 137, 91,  90,  15,
@@ -85,6 +85,7 @@ inline fn lerp(a: f64, b: f64, x: f64) f64 {
 }
 
 fn perlin(x: f64, y: f64, z: f64) f64 {
+    // warn("x: {d:.5}\n", .{x});
     const x_trunc = @floatToInt(u64, x);
     const y_trunc = @floatToInt(u64, y);
     const z_trunc = @floatToInt(u64, z);
@@ -120,9 +121,7 @@ fn perlin(x: f64, y: f64, z: f64) f64 {
     return (lerp(y1, y2, w) + 1.0) / 2.0;
 }
 
-fn perlinRepeat(repeat: u64, x: f64, y: f64, z: f64) f64 {}
-
-fn octavePerlin(x: f64, y: f64, z: f64, octaves: u8, persistence: f64) f64 {
+pub fn octavePerlin(x: f64, y: f64, z: f64, octaves: u8, persistence: f64) f64 {
     var total: f64 = 0.0;
     var frequency: f64 = 1.0;
     var amplitude: f64 = 1.0;
@@ -139,30 +138,39 @@ fn octavePerlin(x: f64, y: f64, z: f64, octaves: u8, persistence: f64) f64 {
     return total / max_value;
 }
 
-pub fn generateHeightMap(comptime scale: usize, allocator: *Allocator) ![]f32 {
+pub fn generateHeightMap(comptime scale: usize, comptime resolution: f64, allocator: *Allocator) ![]f32 {
     var values = try allocator.alloc(f32, scale * scale);
 
-    var min: f64 = 1.0;
-    var max: f64 = 0.0;
+    var min: f32 = 1.0;
+    var max: f32 = 0.0;
     var x: usize = 0;
     while (x < scale) : (x += 1) {
         var y: usize = 0;
         while (y < scale) : (y += 1) {
-            const fp = octavePerlin(@intToFloat(f64, x) / @intToFloat(f64, scale), @intToFloat(f64, y) / @intToFloat(f64, scale), 1.0 / 1024.0, 7, 0.36);
+            const fp = blk: {
+                const f = octavePerlin(@intToFloat(f64, x) / resolution, @intToFloat(f64, y) / resolution, 1.0, 7, 0.36);
+                break :blk @floatCast(f32, f);
+            };
             if (min > fp) {
                 min = fp;
             }
             if (max < fp) {
                 max = fp;
             }
-            values[x * scale + y] = @floatCast(f32, fp);
+            values[x * scale + y] = fp;
         }
     }
 
     var i: usize = 0;
     while (i < values.len) : (i += 1) {
         const new_v = (values[i] - min) / (max - min);
-        values[i] = @floatCast(f32, new_v * 255.0);
+        values[i] = blk: {
+            var v: f32 = new_v - falloff[i];
+            if (v < 0.0) {
+                v = 0.0;
+            }
+            break :blk v;
+        };
     }
 
     return values;
@@ -206,7 +214,38 @@ pub fn generateNoise(comptime scale: usize) !void {
     }
 }
 
-pub fn heightMapToFile(height_map: []f32) !void {
+pub fn generateFalloutMap(comptime scale: usize, allocator: *Allocator) ![]f32 {
+    var values = try allocator.alloc(f32, scale * scale);
+
+    var i: usize = 0;
+    while (i < scale) : (i += 1) {
+        var j: usize = 0;
+        while (j < scale) : (j += 1) {
+            const x: f32 = blk: {
+                const normalized: f32 = @intToFloat(f32, i) / @intToFloat(f32, scale);
+                break :blk (normalized * 2.0) - 1.0;
+            };
+            const y: f32 = blk: {
+                const normalized: f32 = @intToFloat(f32, j) / @intToFloat(f32, scale);
+                break :blk (normalized * 2.0) - 1.0;
+            };
+
+            const value: f32 = math.max(math.absFloat(x), math.absFloat(y));
+            values[(i * scale) + j] = evaluate(value);
+        }
+    }
+
+    return values;
+}
+
+inline fn evaluate(value: f32) f32 {
+    const a: f32 = 3.0;
+    const b: f32 = 2.2;
+
+    return math.pow(f32, value, a) / (math.pow(f32, value, a) + math.pow(f32, b - (b * value), a));
+}
+
+pub fn heightMapToFile(height_map: []f32, file_path: [*c]const u8) !void {
     var pixels = try c_allocator.alloc(u8, height_map.len);
     defer c_allocator.free(pixels);
 
@@ -215,8 +254,8 @@ pub fn heightMapToFile(height_map: []f32) !void {
         pixels[i] = @floatToInt(u8, height_map[i]);
     }
 
-    const scale = @intCast(c_int, std.math.sqrt(height_map.len));
-    const result = image_write.stbi_write_bmp("test.bmp", scale, scale, 1, pixels.ptr);
+    const size = @intCast(c_int, std.math.sqrt(height_map.len));
+    const result = image_write.stbi_write_bmp(file_path, size, size, 1, pixels.ptr);
 
     if (result == 0) {
         return error.ImageCouldNotBeWritten;

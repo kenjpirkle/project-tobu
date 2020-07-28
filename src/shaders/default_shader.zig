@@ -44,10 +44,10 @@ pub const DefaultShader = struct {
     vertex_buffer_objects: [buffer_count]GLuint = undefined,
     projection_location: GLint = undefined,
     view_location: GLint = undefined,
-    vertex_buffer: MapBuffer(f32, 32256) = undefined,
-    offset_buffer: MapBuffer(zglm.Vec3, 84) = undefined,
+    vertex_buffer: MapBuffer(f32, 130560) = undefined,
+    offset_buffer: MapBuffer(zglm.Vec3, 88) = undefined,
     colour_buffer: MapBuffer(Colour, 256) = undefined,
-    draw_command_buffer: MapBuffer(DrawArraysIndirectCommand, 84) = undefined,
+    draw_command_buffer: MapBuffer(DrawArraysIndirectCommand, 88) = undefined,
 
     pub fn init(self: *Self) !void {
         self.shader = try Shader.init(shaders[0..]);
@@ -160,6 +160,11 @@ pub const DefaultShader = struct {
             .{ .x = 252.0, .y = 256.0, .z = 0.25 },
             .{ .x = 258.0, .y = 254.0, .z = 0.25 },
             .{ .x = 258.0, .y = 256.0, .z = 0.25 },
+            // 1 chunks
+            .{ .x = 254.0, .y = 254.0, .z = 0.015625 },
+            .{ .x = 255.0, .y = 254.0, .z = 0.015625 },
+            .{ .x = 254.0, .y = 255.0, .z = 0.015625 },
+            .{ .x = 255.0, .y = 255.0, .z = 0.015625 },
         });
 
         // COLOUR BUFFER

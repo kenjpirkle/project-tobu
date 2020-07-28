@@ -155,6 +155,13 @@ pub const Game = struct {
                 }
             }
         }
+        for (self.world.close) |chunk| {
+            for (chunk) |row| {
+                for (row) |quad| {
+                    self.default_shader.vertex_buffer.append(&quad);
+                }
+            }
+        }
         self.default_shader.vertex_buffer.endModify();
         self.default_shader.draw_command_buffer.beginModify();
         var i: usize = 0;
@@ -165,6 +172,17 @@ pub const Game = struct {
                     .instance_count = 1,
                     .base_vertex = @intCast(GLuint, i * 384),
                     .base_instance = @intCast(GLuint, i),
+                },
+            });
+        }
+        i = 0;
+        while (i < 4) : (i += 1) {
+            self.default_shader.draw_command_buffer.append(&[_]DrawArraysIndirectCommand{
+                .{
+                    .vertex_count = 24576,
+                    .instance_count = 1,
+                    .base_vertex = 32256 + @intCast(GLuint, i * 24576),
+                    .base_instance = @intCast(GLuint, 84 + 1),
                 },
             });
         }

@@ -1,8 +1,6 @@
 #version 460 core
 
 in vec4 colour;
-in vec2 height_x;
-in flat uint noise;
 
 out vec4 out_colour;
 

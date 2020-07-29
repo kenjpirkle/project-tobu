@@ -164,28 +164,20 @@ pub const Game = struct {
         }
         self.default_shader.vertex_buffer.endModify();
         self.default_shader.draw_command_buffer.beginModify();
-        var i: usize = 0;
-        while (i < 84) : (i += 1) {
-            self.default_shader.draw_command_buffer.append(&[_]DrawArraysIndirectCommand{
-                .{
-                    .vertex_count = 384,
-                    .instance_count = 1,
-                    .base_vertex = @intCast(GLuint, i * 384),
-                    .base_instance = @intCast(GLuint, i),
-                },
-            });
-        }
-        i = 0;
-        while (i < 4) : (i += 1) {
-            self.default_shader.draw_command_buffer.append(&[_]DrawArraysIndirectCommand{
-                .{
-                    .vertex_count = 24576,
-                    .instance_count = 1,
-                    .base_vertex = 32256 + @intCast(GLuint, i * 24576),
-                    .base_instance = @intCast(GLuint, 84 + 1),
-                },
-            });
-        }
+        self.default_shader.draw_command_buffer.append(&[_]DrawArraysIndirectCommand{
+            .{
+                .vertex_count = 384,
+                .instance_count = 84,
+                .base_vertex = 0,
+                .base_instance = 0,
+            },
+            .{
+                .vertex_count = 24576,
+                .instance_count = 4,
+                .base_vertex = 32256,
+                .base_instance = 84,
+            },
+        });
         self.default_shader.draw_command_buffer.endModify();
 
         self.first_mouse = true;

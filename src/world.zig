@@ -6,7 +6,7 @@ pub const World = struct {
     const sizes = [_]f64{
         16.0, 8.0, 4.0, 2.0, 1.0, 0.5, 0.25,
     };
-    const local_size: f64 = 0.015625;
+    const local_size: f64 = 0.03125;
 
     // 32,256 total vertices
     // 84 chunks
@@ -545,8 +545,7 @@ pub const World = struct {
             }
         }
         // bottom row
-        chunk = 0;
-        while (chunk < 2) : (chunk += 1) {
+        while (chunk < 4) : (chunk += 1) {
             // outer edges first
             // top left corner quad
             var col: usize = 0;
@@ -556,11 +555,11 @@ pub const World = struct {
             const r0: f64 = @intToFloat(f64, row);
             var c: f64 = @intToFloat(f64, col + 1);
             var r: f64 = @intToFloat(f64, row + 1);
-            const ch: f64 = @intToFloat(f64, chunk);
+            const ch: f64 = @intToFloat(f64, chunk - 2);
             const cs: f64 = ch * local_size * 64.0;
 
             var x0: f64 = offset + cs;
-            var y0: f64 = offset + 1.0;
+            var y0: f64 = offset + (local_size * 64.0);
             var x1: f64 = undefined;
             var y1: f64 = undefined;
 
@@ -574,7 +573,7 @@ pub const World = struct {
             height = heightAt(x1, y0);
             w.close[chunk][row][col][3] = height;
 
-            y1 = offset + 1.0 + (local_size * r);
+            y1 = offset + (local_size * 64.0) + (local_size * r);
             height = heightAt(x0, y1);
             w.close[chunk][row][col][1] = height;
 
@@ -588,7 +587,7 @@ pub const World = struct {
                 c = @intToFloat(f64, col + 1);
                 r = @intToFloat(f64, row + 1);
                 x1 = offset + cs + (local_size * c);
-                y1 = offset + 1.0 + (local_size * r);
+                y1 = offset + (local_size * 64.0) + (local_size * r);
 
                 w.close[chunk][row][col][1] = w.close[chunk][row][col - 1][5];
                 w.close[chunk][row][col][4] = w.close[chunk][row][col - 1][3];
@@ -610,7 +609,7 @@ pub const World = struct {
                 r = @intToFloat(f64, row + 1);
                 x0 = offset + cs;
                 x1 = offset + cs + (local_size * c);
-                y1 = offset + 1.0 + (local_size * r);
+                y1 = offset + (local_size * 64.0) + (local_size * r);
 
                 w.close[chunk][row][col][0] = w.close[chunk][row - 1][col][1];
                 w.close[chunk][row][col][3] = w.close[chunk][row - 1][col][2];
@@ -632,7 +631,7 @@ pub const World = struct {
                     c = @intToFloat(f64, col + 1);
                     r = @intToFloat(f64, row + 1);
                     x1 = offset + cs + (local_size * c);
-                    y1 = offset + 1.0 + (local_size * r);
+                    y1 = offset + (local_size * 64.0) + (local_size * r);
 
                     w.close[chunk][row][col][0] = w.close[chunk][row - 1][col][1];
                     w.close[chunk][row][col][1] = w.close[chunk][row][col - 1][2];
@@ -650,6 +649,6 @@ pub const World = struct {
     }
 
     inline fn heightAt(x: f64, y: f64) f32 {
-        return @floatCast(f32, perlin.octavePerlin(x / 128.0, y / 128.0, 1.0, 7, 0.35) * constants.height_scale);
+        return @floatCast(f32, perlin.octavePerlin(x / 128.0, y / 128.0, 1.0, 7, 0.45) * constants.height_scale);
     }
 };

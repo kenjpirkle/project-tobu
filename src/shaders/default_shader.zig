@@ -11,7 +11,7 @@ const constants = @import("../game_constants.zig");
 usingnamespace @import("../c.zig");
 
 const BufferType = struct {
-    pub const VertexBuffer: u32 = 0;
+    pub const HeightBuffer: u32 = 0;
     pub const OffsetBuffer: u32 = 1;
     pub const ColourBuffer: u32 = 2;
     pub const DrawCommandBuffer: u32 = 3;
@@ -20,9 +20,8 @@ const BufferType = struct {
 const buffer_count = 4;
 
 const ShaderLocation = struct {
-    pub const Vertex: u32 = 0;
-    pub const Offset: u32 = 1;
-    pub const ColourIndex: u32 = 2;
+    pub const Offset: u32 = 0;
+    pub const ColourIndex: u32 = 1;
 };
 
 pub const DefaultShader = struct {
@@ -47,7 +46,7 @@ pub const DefaultShader = struct {
     vertex_buffer: MapBuffer(f32, 130560) = undefined,
     offset_buffer: MapBuffer(zglm.Vec3, 88) = undefined,
     colour_buffer: MapBuffer(Colour, 256) = undefined,
-    draw_command_buffer: MapBuffer(DrawArraysIndirectCommand, 88) = undefined,
+    draw_command_buffer: MapBuffer(DrawArraysIndirectCommand, 2) = undefined,
 
     pub fn init(self: *Self) !void {
         self.shader = try Shader.init(shaders[0..]);
@@ -57,11 +56,9 @@ pub const DefaultShader = struct {
         glBindVertexArray(self.vertex_array_object);
         glCreateBuffers(buffer_count, &self.vertex_buffer_objects[0]);
 
-        // VERTEX BUFFER
-        self.vertex_buffer.init(self.vertex_buffer_objects[BufferType.VertexBuffer], GL_ARRAY_BUFFER);
-        // vertex attribute
-        glVertexAttribPointer(ShaderLocation.Vertex, 1, GL_FLOAT, GL_FALSE, @sizeOf(f32), @intToPtr(?*c_void, 0));
-        glEnableVertexAttribArray(ShaderLocation.Vertex);
+        // HEIGHT BUFFER
+        self.vertex_buffer.init(self.vertex_buffer_objects[BufferType.HeightBuffer], GL_SHADER_STORAGE_BUFFER);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, self.vertex_buffer_objects[BufferType.HeightBuffer]);
 
         // OFFSET BUFFER
         self.offset_buffer.init(self.vertex_buffer_objects[BufferType.OffsetBuffer], GL_ARRAY_BUFFER);
@@ -160,11 +157,11 @@ pub const DefaultShader = struct {
             .{ .x = 252.0, .y = 256.0, .z = 0.25 },
             .{ .x = 258.0, .y = 254.0, .z = 0.25 },
             .{ .x = 258.0, .y = 256.0, .z = 0.25 },
-            // 1 chunks
-            .{ .x = 254.0, .y = 254.0, .z = 0.015625 },
-            .{ .x = 255.0, .y = 254.0, .z = 0.015625 },
-            .{ .x = 254.0, .y = 255.0, .z = 0.015625 },
-            .{ .x = 255.0, .y = 255.0, .z = 0.015625 },
+            // close chunks
+            .{ .x = 254.0, .y = 254.0, .z = 0.03125 },
+            .{ .x = 256.0, .y = 254.0, .z = 0.03125 },
+            .{ .x = 254.0, .y = 256.0, .z = 0.03125 },
+            .{ .x = 256.0, .y = 256.0, .z = 0.03125 },
         });
 
         // COLOUR BUFFER
@@ -199,7 +196,7 @@ pub const DefaultShader = struct {
                 .alpha = 1.00,
             },
         });
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, self.vertex_buffer_objects[BufferType.ColourBuffer]);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, self.vertex_buffer_objects[BufferType.ColourBuffer]);
 
         // DRAW COMMAND BUFFER
         self.draw_command_buffer.init(self.vertex_buffer_objects[BufferType.DrawCommandBuffer], GL_DRAW_INDIRECT_BUFFER);

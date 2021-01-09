@@ -1,2 +1,2 @@
 # project-tobu
-Voxel magic
+Voxel-based procedurally generated world
